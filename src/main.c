@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+#include <cglm/cglm.h>
 #include <stdio.h>
 
 #define SCREEN_WIDTH	800
@@ -15,20 +16,17 @@ static void processInput(GLFWwindow *window);
 static const char *vertexShaderSource = 
 	"#version 330 core\n"
 	"layout (location = 0) in vec3 aPos;\n"
-	"layout (location = 1) in vec3 aColor;\n"
-	"layout (location = 2) in vec2 aTexCoord;\n"
-	"out vec3 ourColor;\n"
+	"layout (location = 1) in vec2 aTexCoord;\n"
 	"out vec2 TexCoord;\n"
+	"uniform mat4 transform;\n"
 	"void main()\n"
 	"{\n"
-	"	gl_Position = vec4(aPos, 1.0);\n"
-	"	ourColor = aColor;\n"
+	"	gl_Position = transform * vec4(aPos, 1.0);\n"
 	"	TexCoord = aTexCoord;\n"
 	"}\0";
 static const char *fragmentShaderSource = 
 	"#version 330 core\n"
 	"out vec4 FragColor;\n"
-	"in vec3 ourColor;\n"
 	"in vec2 TexCoord;\n"
 	"uniform sampler2D ourTexture;\n"	
 	"void main()\n"
@@ -101,10 +99,10 @@ int main(void)
 	glDeleteShader(fragmentShader);
 
 	float vertices[] = {
-		0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-		0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,
-		-0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
-		-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f
+		0.5f, 0.5f, 0.0f, 1.0f, 1.0f,
+		0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
+		-0.5f, -0.5f, 0.0f, 0.0f, 0.0f,
+		-0.5f, 0.5f, 0.0f, 0.0f, 1.0f
 	};
 	unsigned int indices[] = {
 		0, 1, 3,
@@ -119,14 +117,11 @@ int main(void)
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*) 0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*) 0);
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
 		(void*) (3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-		(void*) (6 * sizeof(float)));
-	glEnableVertexAttribArray(2);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 
@@ -160,6 +155,18 @@ int main(void)
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		glBindTexture(GL_TEXTURE_2D, texture);
+
+		mat4 m = {
+			1, 0, 0, 0,
+			0, 1, 0, 0,
+			0, 0, 1, 0,
+			0, 0, 0, 1
+		};
+		glm_translate(m, (vec3){0.3f, -0.3f, 0.0f});
+		glm_rotate(m, (float)glfwGetTime(), (vec3){0.0f, 0.0f, 1.0f});
+		unsigned int transformLoc = glGetUniformLocation(shaderProgram,
+			"transform");
+		glUniformMatrix4fv(transformLoc, 1, GL_FALSE, (float*) m);
 
 		glUseProgram(shaderProgram);
 		glBindVertexArray(VAO);
