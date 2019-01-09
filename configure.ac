@@ -26,5 +26,7 @@ PKG_CHECK_MODULES([gllibs], [gl, glew, glfw3 >= 3.0])
 AC_CONFIG_FILES([Makefile
 				glad/Makefile
 				glad/src/Makefile
+				data/Makefile
+				data/images/Makefile
 				src/Makefile])
 AC_OUTPUT

@@ -1,1 +1,1 @@
-SUBDIRS = glad src
+SUBDIRS = glad data src
