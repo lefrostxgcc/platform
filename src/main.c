@@ -187,6 +187,19 @@ int main(void)
 	}
 	stbi_image_free(data);
 
+	vec3 cubePositions[] = {
+		{0.0f,  0.0f,  0.0f},
+		{2.0f,  5.0f, -15.0f},
+		{-1.5f, -2.2f, -2.5f},
+		{-3.8f, -2.0f, -12.3f},
+		{2.4f, -0.4f, -3.5f},
+		{-1.7f,  3.0f, -7.5f},
+		{1.3f, -2.0f, -2.5f},
+		{1.5f,  2.0f, -2.5f},
+		{1.5f,  0.2f, -1.5f},
+		{-1.3f,  1.0f, -1.5f}
+	};
+
 	while (!glfwWindowShouldClose(window))
 	{
 		processInput(window);
@@ -196,12 +209,6 @@ int main(void)
 
 		glBindTexture(GL_TEXTURE_2D, texture);
 
-		mat4 model = {
-			1, 0, 0, 0,
-			0, 1, 0, 0,
-			0, 0, 1, 0,
-			0, 0, 0, 1
-		};
 		mat4 view = {
 			1, 0, 0, 0,
 			0, 1, 0, 0,
@@ -214,20 +221,37 @@ int main(void)
 			0, 0, 1, 0,
 			0, 0, 0, 1
 		};
-		glm_rotate(model, (float)glfwGetTime(), (vec3){0.5f, 1.0f, 0.0f});
-		glm_translate(view, (vec3){0.0f, 0.0f, -3.0f});
+
+		glUseProgram(shaderProgram);
+
+		glm_translate(view, (vec3){0.0f, 0.0f, -10.0f});
 		glm_perspective(glm_rad(45.0f), (float)SCREEN_WIDTH / SCREEN_HEIGHT,
 			0.1f, 100.0f, projection);
-		unsigned int modelLoc = glGetUniformLocation(shaderProgram, "model");
+
 		unsigned int viewLoc = glGetUniformLocation(shaderProgram, "view");
-		unsigned int projectLoc = glGetUniformLocation(shaderProgram, "projection");
-		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (float*) model);
+		unsigned int projectLoc = glGetUniformLocation(shaderProgram,
+			"projection");
 		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (float*) view);
 		glUniformMatrix4fv(projectLoc, 1, GL_FALSE, (float*) projection);
 
-		glUseProgram(shaderProgram);
-		glBindVertexArray(VAO);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
+		for (int i = 0; i < sizeof cubePositions / sizeof cubePositions[0]; i++)
+		{
+			mat4 model = {
+				1, 0, 0, 0,
+				0, 1, 0, 0,
+				0, 0, 1, 0,
+				0, 0, 0, 1
+			};
+
+			glm_translate(model, cubePositions[i]);
+			glm_rotate(model, (float)glfwGetTime(), (vec3){1.0f, 0.3f, 0.5f});
+			
+			unsigned int modelLoc = glGetUniformLocation(shaderProgram, "model");
+			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (float*) model);
+			
+			glBindVertexArray(VAO);
+			glDrawArrays(GL_TRIANGLES, 0, 36);
+		}
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
