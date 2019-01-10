@@ -2,8 +2,8 @@
 #define GLEW_STATIC
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
+//#define STB_IMAGE_IMPLEMENTATION
+//#include <stb_image.h>
 #include <cglm/cglm.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -25,21 +25,21 @@ struct Character
 
 static struct Character Characters[128];
 
-static void framebuffer_size_callback(GLFWwindow *win, int width, int height);
-static void processInput(GLFWwindow *window);
-static void mouse_click_callback(GLFWwindow *window, int btn, int act, int mod);
+//static void framebuffer_size_callback(GLFWwindow *win, int width, int height);
+//static void processInput(GLFWwindow *window);
+//static void mouse_click_callback(GLFWwindow *window, int btn, int act, int mod);
 
 static void RenderText(int shader, const char *str, GLfloat x, GLfloat y,
 	GLfloat scale);
 
-static float deltaTime = 0.0f;
+/*static float deltaTime = 0.0f;
 static float lastFrame = 0.0f;
 static vec3 cameraPos = {0.0f, 0.0f, 3.0f};
 static vec3 cameraFront = {0.0f, 0.0f, -1.0f};
-static vec3 cameraUp = {0.0f, 1.0f, 0.0f};
-static unsigned int VBOt, VAOt;
+static vec3 cameraUp = {0.0f, 1.0f, 0.0f};*/
+static GLuint VBOt, VAOt;
 
-static const char *vertexShaderSource = 
+/*static const char *vertexShaderSource = 
 	"#version 330 core\n"
 	"layout (location = 0) in vec3 aPos;\n"
 	"layout (location = 1) in vec2 aTexCoord;\n"
@@ -60,15 +60,15 @@ static const char *fragmentShaderSource =
 	"void main()\n"
 	"{\n"
 	"	FragColor = texture(ourTexture, TexCoord);\n"
-	"}\0";
+	"}\0";*/
 static const char *vertexShaderTexSource = 
 	"#version 330 core\n"
 	"layout (location = 0) in vec4 vertex;\n"
 	"out vec2 TexCoords;\n"
-	"uniform mat4 projection_tex;\n"
+	"uniform mat4 projection;\n"
 	"void main()\n"
 	"{\n"
-	"	gl_Position = projection_tex * vec4(vertex.xy, 0.0, 1.0);\n"
+	"	gl_Position = projection * vec4(vertex.xy, 0.0, 1.0);\n"
 	"	TexCoords = vertex.zw;\n"
 	"}\0";
 static const char *fragmentShaderTexSource = 
@@ -115,12 +115,12 @@ int main(void)
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 //	glEnable(GL_DEPTH_TEST);
 	//glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-	glfwSetMouseButtonCallback(window, mouse_click_callback);
+	//glfwSetMouseButtonCallback(window, mouse_click_callback);
 
-	int vertexShader = glCreateShader(GL_VERTEX_SHADER);
+	/*int vertexShader = glCreateShader(GL_VERTEX_SHADER);
 	glShaderSource(vertexShader, 1, &vertexShaderSource, 0);
 	glCompileShader(vertexShader);
-
+*/
 	int success;
 	char infoLog[512];
 	/*glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
@@ -192,18 +192,12 @@ int main(void)
 	glDeleteShader(vertexShaderTex);
 	glDeleteShader(fragmentShaderTex);
 
-	mat4 projection_tex = {
-		1, 0, 0, 0,
-		0, 1, 0, 0,
-		0, 0, 1, 0,
-		0, 0, 0, 1
-	};
+	mat4 projection_tex;
 
-	glm_ortho(0.0f, (float) SCREEN_WIDTH, 0.0f, SCREEN_HEIGHT, 0.1f, 100.0f,
-		projection_tex);
-
+	glm_ortho_default((float) SCREEN_WIDTH / SCREEN_HEIGHT, projection_tex);
+	glUseProgram(shaderProgramTex);
 	unsigned int projectTexLoc = glGetUniformLocation(shaderProgramTex,
-		"projection_tex");
+		"projection");
 	glUniformMatrix4fv(projectTexLoc, 1, GL_FALSE, (float*) projection_tex);
 
 	FT_Library ft;
@@ -241,10 +235,12 @@ int main(void)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		vec2 ssize = {face->glyph->bitmap.width, face->glyph->bitmap.rows};
+		vec2 bbear = {face->glyph->bitmap_left, face->glyph->bitmap_top};
         struct Character character = {
             texture,
-            {face->glyph->bitmap.width, face->glyph->bitmap.rows},
-            {face->glyph->bitmap_left, face->glyph->bitmap_top},
+            {ssize[0], ssize[1]},
+            {bbear[0], bbear[1]},
             face->glyph->advance.x
         };
       	Characters[c] = character;
@@ -257,9 +253,9 @@ int main(void)
 	glGenBuffers(1, &VBOt);
 	glBindVertexArray(VAOt);
 	glBindBuffer(GL_ARRAY_BUFFER, VBOt);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 24, 0, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*) 0);
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), 0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 
@@ -435,7 +431,7 @@ static void framebuffer_size_callback(GLFWwindow *win, int width, int height)
 
 static void processInput(GLFWwindow *window)
 {
-	vec3 temp;
+	/*vec3 temp;
 
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, 1);
@@ -463,7 +459,7 @@ static void processInput(GLFWwindow *window)
 		glm_vec3_normalize(temp);
 		glm_vec3_scale(temp, cameraSpeed, temp);
 		glm_vec3_add(cameraPos, temp, cameraPos);
-	}
+	}*/
 }
 
 static void mouse_click_callback(GLFWwindow *window, int btn, int act, int mod)
@@ -490,7 +486,6 @@ static void RenderText(int shader, const char *str, GLfloat x, GLfloat y,
     {
 		char c = str[i];
         struct Character ch = Characters[c];
-
         GLfloat xpos = x + ch.Bearing[0] * scale;
         GLfloat ypos = y - (ch.Size[1] - ch.Bearing[1]) * scale;
 
@@ -511,10 +506,9 @@ static void RenderText(int shader, const char *str, GLfloat x, GLfloat y,
         // Update content of VBO memory
         glBindBuffer(GL_ARRAY_BUFFER, VBOt);
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices); // Be sure to use glBufferSubData and not glBufferData
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
         // Render quad
         glDrawArrays(GL_TRIANGLES, 0, 6);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
         // Now advance cursors for next glyph (note that advance is number of 1/64 pixels)
         x += (ch.Advance >> 6) * scale; // Bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
     }
