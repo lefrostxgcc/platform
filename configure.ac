@@ -16,6 +16,7 @@ LT_INIT
 
 # Checks for libraries.
 PKG_CHECK_MODULES([gllibs], [gl, glew, glfw3 >= 3.0])
+PKG_CHECK_MODULES([freetype], [freetype2])
 
 # Checks for header files.
 
@@ -35,6 +36,7 @@ AC_CONFIG_FILES([Makefile
 				cglm/include/cglm/simd/neon/Makefile
 				cglm/include/cglm/simd/sse2/Makefile
 				data/Makefile
+				data/fonts/Makefile
 				data/images/Makefile
 				src/Makefile])
 AC_OUTPUT

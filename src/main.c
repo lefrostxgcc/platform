@@ -1,24 +1,43 @@
-#include <glad/glad.h>
+//#include <glad/glad.h>
+#define GLEW_STATIC
+#include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include <cglm/cglm.h>
+#include <ft2build.h>
+#include FT_FREETYPE_H
 #include <stdio.h>
 
 #define SCREEN_WIDTH	800
 #define SCREEN_HEIGHT	600
 #define WINDOW_TITLE	"Platform"
 #define	WALL_TEXTURE	(DATA_PATH "/images/wall.jpg")
+#define	FONT_FACE		(DATA_PATH "/fonts/FreeMono.ttf")
+
+struct Character
+{
+	GLuint TextureID;
+	vec2 Size;
+	vec2 Bearing;
+	GLuint Advance;
+};
+
+static struct Character Characters[128];
 
 static void framebuffer_size_callback(GLFWwindow *win, int width, int height);
 static void processInput(GLFWwindow *window);
 static void mouse_click_callback(GLFWwindow *window, int btn, int act, int mod);
+
+static void RenderText(int shader, const char *str, GLfloat x, GLfloat y,
+	GLfloat scale);
 
 static float deltaTime = 0.0f;
 static float lastFrame = 0.0f;
 static vec3 cameraPos = {0.0f, 0.0f, 3.0f};
 static vec3 cameraFront = {0.0f, 0.0f, -1.0f};
 static vec3 cameraUp = {0.0f, 1.0f, 0.0f};
+static unsigned int VBOt, VAOt;
 
 static const char *vertexShaderSource = 
 	"#version 330 core\n"
@@ -42,6 +61,27 @@ static const char *fragmentShaderSource =
 	"{\n"
 	"	FragColor = texture(ourTexture, TexCoord);\n"
 	"}\0";
+static const char *vertexShaderTexSource = 
+	"#version 330 core\n"
+	"layout (location = 0) in vec4 vertex;\n"
+	"out vec2 TexCoords;\n"
+	"uniform mat4 projection_tex;\n"
+	"void main()\n"
+	"{\n"
+	"	gl_Position = projection_tex * vec4(vertex.xy, 0.0, 1.0);\n"
+	"	TexCoords = vertex.zw;\n"
+	"}\0";
+static const char *fragmentShaderTexSource = 
+	"#version 330 core\n"
+	"in vec2 TexCoords;\n"
+	"out vec4 color;\n"
+	"uniform sampler2D text;\n"
+	"uniform vec3 textColor;\n"	
+	"void main()\n"
+	"{\n"
+	"	vec4 sampled = vec4(1.0, 1.0, 1.0, texture(text, TexCoords).r);\n"
+	"	color = vec4(textColor, 1.0) * sampled;\n"
+	"}\0";
 
 int main(void)
 {
@@ -49,6 +89,7 @@ int main(void)
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 #ifdef __APPLE__
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
@@ -61,21 +102,28 @@ int main(void)
 		return 1;
 	}
 	glfwMakeContextCurrent(window);
-	if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress))
+	glewExperimental = GL_TRUE;
+	glewInit();
+	glViewport(0, 0, 800, 600);
+	/*if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress))
 	{
 		fprintf(stderr, "Failed to initialize GLAD\n");
 		return 2;
-	}
-	glEnable(GL_DEPTH_TEST);
-	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+	}*/
+	glEnable(GL_CULL_FACE);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+//	glEnable(GL_DEPTH_TEST);
+	//glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 	glfwSetMouseButtonCallback(window, mouse_click_callback);
+
 	int vertexShader = glCreateShader(GL_VERTEX_SHADER);
 	glShaderSource(vertexShader, 1, &vertexShaderSource, 0);
 	glCompileShader(vertexShader);
 
 	int success;
 	char infoLog[512];
-	glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+	/*glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
 	if (!success)
 	{
 		glGetShaderInfoLog(vertexShader, 512, 0, infoLog);
@@ -107,8 +155,115 @@ int main(void)
 	}
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
+*/
+	int vertexShaderTex = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(vertexShaderTex, 1, &vertexShaderTexSource, 0);
+	glCompileShader(vertexShaderTex);
 
-	float vertices[] = {
+	glGetShaderiv(vertexShaderTex, GL_COMPILE_STATUS, &success);
+	if (!success)
+	{
+		glGetShaderInfoLog(vertexShaderTex, 512, 0, infoLog);
+		fprintf(stderr, "Error: vertex shader tex compilation failed\n%s\n",
+			infoLog);
+	}
+	int fragmentShaderTex = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(fragmentShaderTex, 1, &fragmentShaderTexSource, 0);
+	glCompileShader(fragmentShaderTex);
+	glGetShaderiv(fragmentShaderTex, GL_COMPILE_STATUS, &success);
+	if (!success)
+	{
+		glGetShaderInfoLog(fragmentShaderTex, 512, 0, infoLog);
+		fprintf(stderr, "Error: fragment shader tex compilation failed\n%s\n",
+			infoLog);
+	}
+
+	int shaderProgramTex = glCreateProgram();
+	glAttachShader(shaderProgramTex, vertexShaderTex);
+	glAttachShader(shaderProgramTex, fragmentShaderTex);
+	glLinkProgram(shaderProgramTex);
+	glGetProgramiv(shaderProgramTex, GL_LINK_STATUS, &success);
+	if (!success)
+	{
+		glGetProgramInfoLog(shaderProgramTex, 512, 0, infoLog);
+		fprintf(stderr, "Error: program shader tex linking failed\n%s\n",
+			infoLog);		
+	}
+	glDeleteShader(vertexShaderTex);
+	glDeleteShader(fragmentShaderTex);
+
+	mat4 projection_tex = {
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1
+	};
+
+	glm_ortho(0.0f, (float) SCREEN_WIDTH, 0.0f, SCREEN_HEIGHT, 0.1f, 100.0f,
+		projection_tex);
+
+	unsigned int projectTexLoc = glGetUniformLocation(shaderProgramTex,
+		"projection_tex");
+	glUniformMatrix4fv(projectTexLoc, 1, GL_FALSE, (float*) projection_tex);
+
+	FT_Library ft;
+	if (FT_Init_FreeType(&ft))
+		fprintf(stderr, "Could not init FreeType Library\n");
+
+	FT_Face face;
+	if (FT_New_Face(ft, FONT_FACE, 0, &face))
+		fprintf(stderr, "Failed to load font\n");
+
+	FT_Set_Pixel_Sizes(face, 0, 48);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	for (int c = 0; c < 128; c++)
+    {
+        if (FT_Load_Char(face, c, FT_LOAD_RENDER))
+        {
+			fprintf(stderr, "Failed to load glyph\n");
+            continue;
+        }
+        GLuint texture;
+        glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            GL_RED,
+            face->glyph->bitmap.width,
+            face->glyph->bitmap.rows,
+            0,
+            GL_RED,
+            GL_UNSIGNED_BYTE,
+            face->glyph->bitmap.buffer
+        );
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        struct Character character = {
+            texture,
+            {face->glyph->bitmap.width, face->glyph->bitmap.rows},
+            {face->glyph->bitmap_left, face->glyph->bitmap_top},
+            face->glyph->advance.x
+        };
+      	Characters[c] = character;
+    }
+	glBindTexture(GL_TEXTURE_2D, 0);
+	FT_Done_Face(face);
+	FT_Done_FreeType(ft);
+
+	glGenVertexArrays(1, &VAOt);
+	glGenBuffers(1, &VBOt);
+	glBindVertexArray(VAOt);
+	glBindBuffer(GL_ARRAY_BUFFER, VBOt);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 24, 0, GL_DYNAMIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*) 0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	/*float vertices[] = {
 		-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
          0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
          0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
@@ -151,19 +306,12 @@ int main(void)
         -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
         -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
     };
-	/*unsigned int indices[] = {
-		0, 1, 3,
-		1, 2, 3
-	};*/
-	unsigned int VBO, VAO /*,EBO*/;
+	unsigned int VBO, VAO;
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
-	//glGenBuffers(1, &EBO);
 	glBindVertexArray(VAO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-	//glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	//glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*) 0);
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
@@ -206,19 +354,20 @@ int main(void)
 		{1.5f,  0.2f, -1.5f},
 		{-1.3f,  1.0f, -1.5f}
 	};
-
+*/
 	while (!glfwWindowShouldClose(window))
 	{
-		float currentFrame = glfwGetTime();
+		glfwPollEvents();
+	/*	float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
 
 		processInput(window);
-
+*/
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT);
 
-		glBindTexture(GL_TEXTURE_2D, texture);
+		/*glBindTexture(GL_TEXTURE_2D, texture);
 
 		mat4 view = {
 			1, 0, 0, 0,
@@ -264,14 +413,16 @@ int main(void)
 			
 			glBindVertexArray(VAO);
 			glDrawArrays(GL_TRIANGLES, 0, 36);
-		}
+		}*/
+
+		RenderText(shaderProgramTex, "ABCDEF", 25.0f, 25.0f, 1.0f);
 
 		glfwSwapBuffers(window);
-		glfwPollEvents();
 	}
-	glDeleteVertexArrays(1, &VAO);
-	glDeleteBuffers(1, &VBO);
-	//glDeleteBuffers(1, &EBO);
+	//glDeleteVertexArrays(1, &VAO);
+	//glDeleteBuffers(1, &VBO);
+	glDeleteVertexArrays(1, &VAOt);
+	glDeleteBuffers(1, &VBOt);
 
 	glfwTerminate();
 }
@@ -324,4 +475,49 @@ static void mouse_click_callback(GLFWwindow *window, int btn, int act, int mod)
 		glfwGetCursorPos(window, &xpos, &ypos);
 		fprintf(stderr, "Mouse click: x = %f y = %f\n", xpos, ypos);
 	}
+}
+
+static void RenderText(int shader, const char *str, GLfloat x, GLfloat y,
+	GLfloat scale)
+{
+	glUseProgram(shader);
+	glUniform3f(glGetUniformLocation(shader, "textColor"),
+		0.5f, 0.8f, 0.2f);
+	glActiveTexture(GL_TEXTURE0);
+	glBindVertexArray(VAOt);
+
+    for (int i = 0; str[i] != '\0'; i++) 
+    {
+		char c = str[i];
+        struct Character ch = Characters[c];
+
+        GLfloat xpos = x + ch.Bearing[0] * scale;
+        GLfloat ypos = y - (ch.Size[1] - ch.Bearing[1]) * scale;
+
+        GLfloat w = ch.Size[0] * scale;
+        GLfloat h = ch.Size[1] * scale;
+        // Update VBO for each character
+        GLfloat vertices[6][4] = {
+            { xpos,     ypos + h,   0.0, 0.0 },            
+            { xpos,     ypos,       0.0, 1.0 },
+            { xpos + w, ypos,       1.0, 1.0 },
+
+            { xpos,     ypos + h,   0.0, 0.0 },
+            { xpos + w, ypos,       1.0, 1.0 },
+            { xpos + w, ypos + h,   1.0, 0.0 }           
+        };
+        // Render glyph texture over quad
+        glBindTexture(GL_TEXTURE_2D, ch.TextureID);
+        // Update content of VBO memory
+        glBindBuffer(GL_ARRAY_BUFFER, VBOt);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices); // Be sure to use glBufferSubData and not glBufferData
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        // Render quad
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        // Now advance cursors for next glyph (note that advance is number of 1/64 pixels)
+        x += (ch.Advance >> 6) * scale; // Bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
+    }
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
