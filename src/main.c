@@ -13,6 +13,12 @@
 static void framebuffer_size_callback(GLFWwindow *win, int width, int height);
 static void processInput(GLFWwindow *window);
 
+static float deltaTime = 0.0f;
+static float lastFrame = 0.0f;
+static vec3 cameraPos = {0.0f, 0.0f, 3.0f};
+static vec3 cameraFront = {0.0f, 0.0f, -1.0f};
+static vec3 cameraUp = {0.0f, 1.0f, 0.0f};
+
 static const char *vertexShaderSource = 
 	"#version 330 core\n"
 	"layout (location = 0) in vec3 aPos;\n"
@@ -202,6 +208,10 @@ int main(void)
 
 	while (!glfwWindowShouldClose(window))
 	{
+		float currentFrame = glfwGetTime();
+		deltaTime = currentFrame - lastFrame;
+		lastFrame = currentFrame;
+
 		processInput(window);
 
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
@@ -222,9 +232,11 @@ int main(void)
 			0, 0, 0, 1
 		};
 
-		glUseProgram(shaderProgram);
+		vec3 cameraTarget;
 
-		glm_translate(view, (vec3){0.0f, 0.0f, -10.0f});
+		glUseProgram(shaderProgram);
+		glm_vec3_add(cameraPos, cameraFront, cameraTarget);
+		glm_lookat(cameraPos, cameraTarget, cameraUp, view);
 		glm_perspective(glm_rad(45.0f), (float)SCREEN_WIDTH / SCREEN_HEIGHT,
 			0.1f, 100.0f, projection);
 
@@ -271,6 +283,33 @@ static void framebuffer_size_callback(GLFWwindow *win, int width, int height)
 
 static void processInput(GLFWwindow *window)
 {
+	vec3 temp;
+
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, 1);
+	float cameraSpeed = 2.5 * deltaTime;
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+	{
+		glm_vec3_scale(cameraFront, cameraSpeed, temp);
+		glm_vec3_add(cameraPos, temp, cameraPos);
+	}
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+	{
+		glm_vec3_scale(cameraFront, cameraSpeed, temp);
+		glm_vec3_sub(cameraPos, temp, cameraPos);
+	}
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+	{
+		glm_vec3_cross(cameraFront, cameraUp, temp);
+		glm_vec3_normalize(temp);
+		glm_vec3_scale(temp, cameraSpeed, temp);
+		glm_vec3_sub(cameraPos, temp, cameraPos);
+	}
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+	{
+		glm_vec3_cross(cameraFront, cameraUp, temp);
+		glm_vec3_normalize(temp);
+		glm_vec3_scale(temp, cameraSpeed, temp);
+		glm_vec3_add(cameraPos, temp, cameraPos);
+	}
 }
