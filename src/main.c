@@ -18,10 +18,12 @@ static const char *vertexShaderSource =
 	"layout (location = 0) in vec3 aPos;\n"
 	"layout (location = 1) in vec2 aTexCoord;\n"
 	"out vec2 TexCoord;\n"
-	"uniform mat4 transform;\n"
+	"uniform mat4 model;\n"
+	"uniform mat4 view;\n"
+	"uniform mat4 projection;\n"
 	"void main()\n"
 	"{\n"
-	"	gl_Position = transform * vec4(aPos, 1.0);\n"
+	"	gl_Position = projection * view * model * vec4(aPos, 1.0);\n"
 	"	TexCoord = aTexCoord;\n"
 	"}\0";
 static const char *fragmentShaderSource = 
@@ -156,17 +158,34 @@ int main(void)
 
 		glBindTexture(GL_TEXTURE_2D, texture);
 
-		mat4 m = {
+		mat4 model = {
 			1, 0, 0, 0,
 			0, 1, 0, 0,
 			0, 0, 1, 0,
 			0, 0, 0, 1
 		};
-		glm_translate(m, (vec3){0.3f, -0.3f, 0.0f});
-		glm_rotate(m, (float)glfwGetTime(), (vec3){0.0f, 0.0f, 1.0f});
-		unsigned int transformLoc = glGetUniformLocation(shaderProgram,
-			"transform");
-		glUniformMatrix4fv(transformLoc, 1, GL_FALSE, (float*) m);
+		mat4 view = {
+			1, 0, 0, 0,
+			0, 1, 0, 0,
+			0, 0, 1, 0,
+			0, 0, 0, 1
+		};
+		mat4 projection = {
+			1, 0, 0, 0,
+			0, 1, 0, 0,
+			0, 0, 1, 0,
+			0, 0, 0, 1
+		};
+		glm_rotate(model, (float)glm_rad(-55.0f), (vec3){1.0f, 0.0f, 0.0f});
+		glm_translate(view, (vec3){0.0f, 0.3f, -3.0f});
+		glm_perspective(glm_rad(45.0f), (float)SCREEN_WIDTH / SCREEN_HEIGHT,
+			0.1f, 100.0f, projection);
+		unsigned int modelLoc = glGetUniformLocation(shaderProgram, "model");
+		unsigned int viewLoc = glGetUniformLocation(shaderProgram, "view");
+		unsigned int projectLoc = glGetUniformLocation(shaderProgram, "projection");
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (float*) model);
+		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (float*) view);
+		glUniformMatrix4fv(projectLoc, 1, GL_FALSE, (float*) projection);
 
 		glUseProgram(shaderProgram);
 		glBindVertexArray(VAO);
