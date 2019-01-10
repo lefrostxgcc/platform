@@ -12,6 +12,7 @@
 
 static void framebuffer_size_callback(GLFWwindow *win, int width, int height);
 static void processInput(GLFWwindow *window);
+static void mouse_click_callback(GLFWwindow *window, int btn, int act, int mod);
 
 static float deltaTime = 0.0f;
 static float lastFrame = 0.0f;
@@ -67,7 +68,7 @@ int main(void)
 	}
 	glEnable(GL_DEPTH_TEST);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-
+	glfwSetMouseButtonCallback(window, mouse_click_callback);
 	int vertexShader = glCreateShader(GL_VERTEX_SHADER);
 	glShaderSource(vertexShader, 1, &vertexShaderSource, 0);
 	glCompileShader(vertexShader);
@@ -311,5 +312,16 @@ static void processInput(GLFWwindow *window)
 		glm_vec3_normalize(temp);
 		glm_vec3_scale(temp, cameraSpeed, temp);
 		glm_vec3_add(cameraPos, temp, cameraPos);
+	}
+}
+
+static void mouse_click_callback(GLFWwindow *window, int btn, int act, int mod)
+{
+	double xpos, ypos;
+
+	if (btn == 0 && act == GLFW_PRESS)
+	{
+		glfwGetCursorPos(window, &xpos, &ypos);
+		fprintf(stderr, "Mouse click: x = %f y = %f\n", xpos, ypos);
 	}
 }
